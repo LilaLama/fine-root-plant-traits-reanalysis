@@ -183,6 +183,7 @@ PCATotal$TPDs <- TPDsMean_large(species = rownames(PCATotal$traitsUse),
 gridSize <- 200
 PCATotal$traitsUse2D <- list()
 PCATotal$TPDs2D <- list()
+alphaUse <- 0.95
 # TPD for the different planes combining pairs of dimensions
 PCATotal$traitsUse2D$Comp1_Comp2 <- data.frame(PCATotal$PCA$scores[, 1:2]) 
 PCATotal$traitsUse2D$Comp1_Comp3 <- data.frame(PCATotal$PCA$scores[, c(1, 3)]) 
@@ -244,14 +245,3 @@ PCATotal$Readme <- "This object contains the functional space created by: 1. PCA
 
 
 saveRDS(PCATotal, paste0("data/PCATotal_CompleteObs.rds"))
-
-
-
-
-
-
-
-
-
-
-

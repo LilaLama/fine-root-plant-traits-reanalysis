@@ -73,6 +73,8 @@ dissim_biome_Clmate <- dissim_biome_Clmate[BiomePrint, BiomePrint]
 ###########################################################
 #### Analyses ####
 #### 
+limX <- c(0, 1)
+limY <- c(0, 1)
 #mantel test families
 par(mfrow=c(2,2))
 vegan::mantel(dissimFamilyAbove, dissimFamilyBelow)
@@ -119,3 +121,4 @@ plot(as.dist(dissim_biome_Clmate), as.dist(dissimBiomeBelow), pch = 21,
 mod<-lmodel2(as.dist(dissimBiomeBelow)~as.dist(dissim_biome_Clmate))
 curve(expr= mod$regression.results$Intercept[2]+ mod$regression.results$Slope[2]*x,
       add=T, col=rgb(.2, .3, .3), lwd=5, lty=1)
+

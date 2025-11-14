@@ -1,6 +1,8 @@
 ### In this script we estimate what amount of functional space is occupied by each of teh considered groups (growth forms, families, biomes), and perform a null model to test whether this amount of space is smaller or larger than what would be expected by chance for the same number of species randomly selected, which is an indicator of the degree of functional redundancy among the species composing the group.
 cat(paste0("\n\n Starting script #9 \n\n"))
 
+start_time <- Sys.time()
+
 data <- readRDS("data/PCATotal_ImputedObs.rds")
 ################################################################ 
 ################################################################ 
@@ -11,7 +13,7 @@ traitsUSE <- data$traitsUse
 colnames(traitsUSE) <- paste0("Comp.",1:dimensions)
 dataAnalysis <- traitsUSE
 info <- data$AllInfo
-nreps <- 4999
+nreps <- 10
 classesWoody <- c("woody","non-woody")
 
 TPDsAuxAbove <- data$TPDs2D$Comp1_Comp2
@@ -131,3 +133,6 @@ for(i in 1:nreps){
 saveRDS(FRicBiomesAbove, file = 'data/RedundancyBiomesAbove.rds')
 saveRDS(FRicBiomesBelow, file = 'data/RedundancyBiomesBelow.rds')
 saveRDS(FRicBiomesTotal, file = 'data/RedundancyBiomesTotal.rds')
+
+end_time <- Sys.time()
+cat(paste0("\n\n Script #9 completed in: ", round(difftime(end_time, start_time, units = "mins"), 2), " minutes \n\n"))

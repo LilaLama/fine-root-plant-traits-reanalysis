@@ -30,41 +30,13 @@ Why it matters (very short)
 Single imputation gives one “best guess” dataset → downstream results treat imputed values as known.
 Proper propagation shows how much uncertainty in species positions / FRic / dissimilarities comes from missing data.
 
-Practical, minimal options:
-- Multiple imputation (recommended): run missForest m times (e.g., m = 10–20), compute PCA on each imputed dataset, align PC axes across imputations, then summarize species scores and all metrics (mean ± SD or 95% CI). Combine scalar estimates with Rubin’s rules where applicable.
-- Bootstrap + imputation: bootstrap rows, impute each sample, compute PCA/metrics, summarize distribution.
-- Model-based uncertainty: use Bayesian/EM PCA variants that return uncertainty for scores/loadings (BPCA, pcaMethods, or Bayesian factor models).
+missForest gives a best guess but also reports OOB error estimates for each imputed value. This uncertainty can be propagated through PCA and downstream analyses using multiple imputation (e.g., Rubin’s rules).
 
-How to do multiple-imputation + PCA in practice (R sketch):
-```r
-# minimal sketch (no filepath)
-library(missForest); library(psych); library(vegan)
+## How to propagate OOB uncertainty to PCA?
+set seed? 
+1. run missForest once
+2. for each imputed value, sample from a distribution centered on the imputed value with spread given by the OOB error (e.g., normal distribution with mean = imputed value, sd = oob_norm * sd(imputed values for that trait))
+3. on the missing values, for nboot replicates, generate nboot datasets by sampling imputed values as above
+4. for each bootstrapped dataset run PCA (and downstream analyses)
+5. get mean and sd of PCA scores over bootstraps to get uncertainty in species positions
 
-m <- 20
-scores_list <- vector("list", m)
-
-# reference: do one imputation to set orientation
-imp0 <- missForest(traitsAux)$ximp[, traitsSelect]
-pc0 <- psych::principal(scale(imp0), nfactors = 4, rotate = "varimax")
-ref_scores <- pc0$scores
-
-for(i in 1:m){
-  imp <- missForest(traitsAux)$ximp[, traitsSelect]
-  pc <- psych::principal(scale(imp), nfactors = 4, rotate = "varimax")
-  scores_list[[i]] <- pc$scores
-}
-
-# align each imputed PCA to reference via Procrustes
-aligned <- lapply(scores_list, function(s){
-  pr <- vegan::procrustes(ref_scores, s)
-  pr$Yrot
-})
-
-# build array: species x axes x m, then summarize
-scores_array <- array(unlist(aligned), c(nrow(ref_scores), ncol(ref_scores), m))
-mean_scores <- apply(scores_array, c(1,2), mean)
-sd_scores   <- apply(scores_array, c(1,2), sd)
-
-# downstream: for each imputation compute TPDs/FRic/dissimilarities,
-# then report mean ± CI across m runs
-```

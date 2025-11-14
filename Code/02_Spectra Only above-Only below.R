@@ -1,6 +1,10 @@
 ### In this script we plot the aboveground and fine-root functional spaces based on species with fully empirical information for aboveground or fine-root traits. These spaces are hence analogous to the ones published by Diaz et al (2016) for aboveground traits and Bergmann et al. (2020) for fine-root traits. For each of these spaces we represent the density of species (trait probability density) 
 cat(paste0("\n\n Starting script #2 \n\n"))
 
+# Export to Figures
+png(filename = "Figures/Spectra_Above_Below_full.png",
+        width = 10, height = 5, units = "in", res = 300)
+
 colGradient <- c("white",  "yellow", "red")
 gradientColorsF <- colorRampPalette(colGradient, space = "Lab")
 ncolors <- 1000
@@ -56,3 +60,5 @@ for(i in 1:2){
   contour(x=trait1Edges, y=trait2Edges, z=imageMat[, , "All"], levels=contourLevels,
           drawlabels = T, labcex = 0.8, lwd=thickCountour, lty=1, col="black", add=T)
 }
+
+dev.off()

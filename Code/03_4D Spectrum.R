@@ -1,6 +1,10 @@
 ### In this script we plot the functional space based on species with fully empirical information for both aboveground AND fine-root traits (301 species). The resulting space is four dimensional, so that we represent plots for each pair of dimensions (Extended Data). Note that Fig. 1 in the main text represents a subset of this, showing only the aboveground (C1-C2) and fine-root (C3-C4) planes.
 cat(paste0("\n\n Starting script #3 \n\n"))
 
+# Export to Figures
+png(filename = "Figures/Spectra_Above_Below_combined_full.png",
+        width = 10, height = 12, units = "in", res = 300)
+
 colGradient <- c("white",  "yellow", "red")
 gradientColorsF <- colorRampPalette(colGradient, space = "Lab")
 ncolors <- 1000
@@ -77,3 +81,4 @@ for(i in 1:length(heights)){
   lines(x=c(0,1), y=rep(heights[i],2), lwd=0.5)
 }
 
+dev.off()
