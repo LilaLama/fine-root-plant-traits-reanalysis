@@ -19,9 +19,9 @@
 - Multivariate nulls: simulate many datasets from a simple multivariate normal model with the same overall mean and covariance as the real data; compare the observed trait patterns (e.g. PCA shape or variance) to those simulated to test if the real data differ from random multivariate structure.
 
 ## Exploration of patterns / downstream analyses
-1. PERMANOVA (vegan::adonis) on Euclidean distances from trait coordinates (single traits, PCA axes, full PCA) to quantify variance explained by growth form, family, biomes.
-2. Dissimilarity between groups: community TPD dissimilarity compared to climatic/abiotic dissimilarity (climate distances via FD::gowdis). Matrix comparisons: mantel (vegan::mantel) and major‑axis regression (lmodel2) on as.dist matrices.
-3. Redundancy: TPDRichness (or TPDRichness_large) per group, compared to null distributions to obtain standardized effect sizes and p‑values.
+1. PERMANOVA (vegan::adonis) on Euclidean distances from trait coordinates to quantify how much variation in trait space is explained by growth form, family, biomes.
+2. Dissimilarity among groups: compute community TPDs (sum of species' trait probability kernels) and pairwise TPD dissimilarities between groups; compare these trait dissimilarities to climate/abiotic dissimilarities (e.g., Gower distance) to test whether different environments host different trait pools.
+3. Redundancy (TPDRichness): compute trait‑space volume occupied by each group (TPDRichness). Compare observed volumes to a null distribution from randomized species assignments to quantify how much trait space is unique (low redundancy) versus overlapped by many species (high redundancy).
 
 ## Uncertainty propagation (imputation)
 - Single imputation treats imputed cells as known; to propagate uncertainty:
