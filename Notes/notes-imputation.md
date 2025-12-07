@@ -12,7 +12,7 @@
    - Very low errors:  
      - Components 1–3: 0.5–0.6% of the dimension range  
      - Component 4: 3.4%  
-   - Imputation reliably reproduces species’ positions even if up to 50% of traits are missing.  
+   - Imputation reliably reproduces species’ positions even if up to 50% of trait values are missing.  
    - Comparison to literature: Penone et al. (2014) reported NRMSE >6%, so this is much lower.  
 
 4. **Phylogenetic information:**  
