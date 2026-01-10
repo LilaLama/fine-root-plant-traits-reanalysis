@@ -105,5 +105,3 @@ To address the uncertainty propagation question and test whether the OOB estimat
 - Recommend reporting wider confidence intervals
 - Or use more conservative 2x OOB as sensitivity check
 
-## To write in peer review:
-_"To address the concern about propagating imputation uncertainty, we conducted a three-pronged analysis. First, we compared PCA loadings under mean imputation (naive baseline) versus missForest imputation to assess whether phylogenetic information in missForest substantively affects PCA structure. Second, we implemented parametric bootstrap around the OOB error estimates to propagate imputation uncertainty through PCA and downstream analyses, producing species positions with uncertainty quantification. Third, as a sensitivity check, we doubled the OOB noise multiplier to test whether OOB estimates are realistic or conservative. These comparisons demonstrate that [RESULTS], providing confidence that [CONCLUSION]."_
