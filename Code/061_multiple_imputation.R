@@ -175,7 +175,7 @@ for(b in seq_len(nboot)){
   for(j in seq_len(ncol(xboot))){
     miss_idx <- which(missing_mat[, j])
     if(length(miss_idx) > 0){
-      xboot[miss_idx, j] <- rnorm(length(miss_idx), mean = ximp0[miss_idx, j], sd = noise_sd[j])
+      xboot[miss_idx, j] <- rnorm(length(miss_idx), mean = ximp0[miss_idx, j], sd = noise_sd[j]) # each bootstrap draw on log10 scale from N(imputed_value, noise_sd)
     }
   }
   imputed_b <- xboot[, traitsSelect]
@@ -210,8 +210,36 @@ if(length(scores_list) > 1){
                  delta = delta,
                  rel_ratio = rel_ratio),
             file = file.path(outdir, "PCA_scores_single_vs_boot.rds"))
+
+    # Simple visualization: deterministic vs. bootstrap mean with ±1 SD for PCs
+    comp_pairs <- list(c(1,2), c(3,4))
+    pair_names <- c("PC1_vs_PC2", "PC3_vs_PC4")
+    for(k in seq_along(comp_pairs)){
+      c1 <- comp_pairs[[k]][1]; c2 <- comp_pairs[[k]][2]
+      png(file.path(outdir, paste0("PCA_scores_single_vs_boot_", pair_names[k], ".png")),
+          width = 1200, height = 800, res = 150)
+      op <- par(mfrow = c(1,1), mar = c(5,5,2,2))
+      plot(single_scores[, c1], single_scores[, c2],
+           pch = 16, col = rgb(0,0,0,0.5),
+           xlab = paste0("Deterministic PC", c1),
+           ylab = paste0("Deterministic PC", c2),
+           main = paste0("Deterministic vs. Bootstrap mean (", pair_names[k], ")"))
+      points(boot_mean[, c1], boot_mean[, c2],
+             pch = 16, col = rgb(0,0,1,0.5))
+      # error bars ±1 SD
+      segments(boot_mean[, c1] - boot_sd[, c1], boot_mean[, c2],
+               boot_mean[, c1] + boot_sd[, c1], boot_mean[, c2],
+               col = rgb(0,0,1,0.3))
+      segments(boot_mean[, c1], boot_mean[, c2] - boot_sd[, c2],
+               boot_mean[, c1], boot_mean[, c2] + boot_sd[, c2],
+               col = rgb(0,0,1,0.3))
+      legend("topright",
+             legend = c("Deterministic", "Bootstrap mean ±1 SD"),
+             pch = c(16,16), col = c(rgb(0,0,0,0.5), rgb(0,0,1,0.5)), bty = "n")
+      par(op)
+      dev.off()
+    }
   }
 }
 
-# Visualization
 

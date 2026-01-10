@@ -42,6 +42,12 @@ system.time(source("code/05_Comparing_with_multivariate_Normal.R")) # 22.8 hours
 #6. Imputation of trait values for species with incomplete information and creation of functional space based on imputed dataset
 system.time(source("code/06_Imputed information spectrum.R")) # 13.2 min
 
+#6.1. Mean imputation: simple deterministic imputation (baseline for comparison)
+system.time(source("code/061_imputation_mean_simple.R")) # ~1 min
+
+#6.2. Bootstrap / parametric-bootstrap around missForest imputation to propagate uncertainty
+system.time(source("code/061_multiple_imputation.R")) # ~X min (depends on nboot setting)
+
 #7. PERMANOVA analyses
 system.time(source("code/07_Permanova_Analyses.R")) # 5.6 min
 
