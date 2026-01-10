@@ -40,3 +40,70 @@ set seed?
 4. for each bootstrapped dataset run PCA (and downstream analyses)
 5. get mean and sd of PCA scores over bootstraps to get uncertainty in species positions
 
+## Implementation: Three-method comparison (Scripts 061–063, 10a)
+
+To address the uncertainty propagation question and test whether the OOB estimates are reliable, three imputation strategies were implemented:
+
+### 1. **Original Single missForest (Script 06)**
+   - Single deterministic imputation
+   - PCA run once on this imputed dataset
+   - Baseline for comparison
+
+### 2. **Mean Imputation (Script 062)**
+   - Naive baseline: replace all NAs with trait-wise means
+   - Full PCA pipeline (varimax rotation, TPDs, etc.)
+   - **Purpose:** Test whether missForest imputation is *essential* for PCA structure, or if naive mean-filling gives similar results
+   - If loadings differ significantly from missForest → missForest provides meaningful information
+   - If loadings are similar → PCA structure is robust to imputation method (reassuring)
+
+### 3. **OOB Bootstrap Uncertainty Propagation (Scripts 061 & 063)**
+
+#### Script 061 (1x OOB):
+   - Run missForest once → get imputed values + OOB error estimates per variable
+   - For 50 bootstrap replicates:
+     - For each originally missing value, sample from $N(\text{imputed value}, \text{OOB error} \times \text{sd}_{\text{trait}})$
+     - Run full PCA on each bootstrap dataset
+   - Compute mean and SD of PCA scores across 50 bootstraps
+   - Visualizations: Deterministic vs. bootstrap mean positions with ±1 SD error bars
+   - Files saved: `PCA_scores_single_vs_boot.rds`, `PCATotal_ImputedObs_boot_*.rds`
+
+#### Script 063 (2x OOB - Sensitivity analysis):
+   - **Same as 063 but with OOB noise multiplied by 2.0**
+   - Purpose: Test whether OOB uncertainty estimates are underestimated
+   - If 2x OOB gives similar PCA results → OOB estimates are reasonable
+   - If 2x OOB gives substantially different results → OOB might be underestimated
+   - Files saved: `PCA_scores_1x_vs_2x_boot.rds`, comparison plots in `data/imputed_bootstrap_2x/`
+
+### 4. **Loadings Comparison (Script 10a)**
+   - Extracts varimax-rotated PCA loadings for all 10 traits across PC1–PC4
+   - Compares loadings across all four methods:
+     - Original missForest
+     - Mean imputation
+     - 1x OOB bootstrap (mean)
+     - 2x OOB bootstrap (mean)
+   - Output: `data/Loadings_all_PCs_comparison.csv`
+   - Summary statistics: Mean absolute differences between methods
+   - Shows whether imputation method affects **PCA structure** (loadings) or only **species positions** (scores)
+
+## Interpretation for Peer Review
+
+### If mean imputation ≈ missForest:
+- missForest adds little value → simple mean imputation is sufficient
+- Suggests PCA structure is **robust** to imputation approach
+
+### If mean imputation ≠ missForest:
+- missForest provides meaningfully different imputations → phylogenetic info helps
+- Justifies using missForest over naive approaches
+
+### If 1x OOB ≈ 2x OOB:
+- OOB uncertainty estimates are **not underestimated**
+- Bootstrap procedure is adequate for propagating uncertainty
+- Gives confidence in reported PCA score uncertainties
+
+### If 1x OOB ≠ 2x OOB:
+- OOB might be underestimated
+- Recommend reporting wider confidence intervals
+- Or use more conservative 2x OOB as sensitivity check
+
+## To write in peer review:
+_"To address the concern about propagating imputation uncertainty, we conducted a three-pronged analysis. First, we compared PCA loadings under mean imputation (naive baseline) versus missForest imputation to assess whether phylogenetic information in missForest substantively affects PCA structure. Second, we implemented parametric bootstrap around the OOB error estimates to propagate imputation uncertainty through PCA and downstream analyses, producing species positions with uncertainty quantification. Third, as a sensitivity check, we doubled the OOB noise multiplier to test whether OOB estimates are realistic or conservative. These comparisons demonstrate that [RESULTS], providing confidence that [CONCLUSION]."_
