@@ -3,6 +3,17 @@
 # This is a naive baseline to compare against missForest imputation.
 # Prerequisite: traitsUse, traitsSelect, AllTraitsAllInfo exist (from script 06)
 
+library(psych)    # for principal() and paran()
+library(ks)       # for Hpi.diag()
+
+# Source auxiliary functions (needed for TPDs)
+source("code/Aux_Functions.R")
+
+# Load traitsUse, traitsSelect, and AllTraitsAllInfo from script 06
+traitsUse <- readRDS("data/traitsUse.rds")
+traitsSelect <- readRDS("data/traitsSelect.rds")
+AllTraitsAllInfo <- readRDS("data/imputedTraits.rds")
+
 # 1) Compute means per trait (only from observed values)
 trait_means <- sapply(traitsUse[, traitsSelect], function(col){
   mean(col, na.rm = TRUE)

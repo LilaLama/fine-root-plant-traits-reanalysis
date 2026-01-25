@@ -5,6 +5,16 @@
 # Prerequisite: traitsAux, traitsSelect, AllTraitsAllInfo exist (from script 06)
 
 library(missForest)
+library(psych)    # for principal() and paran()
+library(ks)       # for Hpi.diag()
+
+# Source auxiliary functions (TPDsMean_large, etc.)
+source("code/Aux_Functions.R")
+
+# Load traitsAux and traitsSelect from script 06
+traitsAux <- readRDS("data/traitsAux.rds")
+traitsSelect <- readRDS("data/traitsSelect.rds")
+AllTraitsAllInfo <- readRDS("data/imputedTraits.rds")
 
 # 1) run single missForest imputation + report OOB errors per variable
 mf <- missForest(xmis = traitsAux, variablewise = TRUE, verbose = TRUE)
@@ -121,17 +131,19 @@ make_PCAtotal_from_AllTraits <- function(AllTraitsAllInfo_obj, suffix = NULL){
   return(PCATotal)
 }
 
-# 6) Create and save nboot imputations and PCATotal for each; also store PCA scores for uncertainty summaries
+# 6) Create and save nboot imputations and PCATotal for each; also store PCA scores and loadings for uncertainty summaries
 scores_list <- vector("list", nboot + 1) # slot 1 = single deterministic imputation, slots 2..nboot+1 = bootstraps
+loadings_list <- vector("list", nboot + 1) # store loadings for each bootstrap
 # boot 0: single imputation (ximp0)
 imputed0 <- ximp0[, traitsSelect]
 AllTraitsAllInfo_single <- AllTraitsAllInfo
 AllTraitsAllInfo_single[, traitsSelect] <- imputed0
 saveRDS(AllTraitsAllInfo_single, file = file.path(outdir, "imputed_single.rds"))
 
-# Single imputation: compute PCATotal and extract scores
+# Single imputation: compute PCATotal and extract scores + loadings
 PCA_single <- make_PCAtotal_from_AllTraits(AllTraitsAllInfo_single, suffix = "_single")
 scores_list[[1]] <- PCA_single$PCA$scores
+loadings_list[[1]] <- as.matrix(PCA_single$PCA$loadings[, 1:4])
 
 # iterative boots
 cat("\nBootstrapping imputations (2x OOB noise)...\n")
@@ -152,6 +164,7 @@ for(b in seq_len(nboot)){
   saveRDS(AllTraitsAllInfo_b, file = file.path(outdir, paste0("imputed_boot_", sprintf("%03d", b), ".rds")))
   PCAb <- make_PCAtotal_from_AllTraits(AllTraitsAllInfo_b, suffix = paste0("_boot_", sprintf("%03d", b)))
   scores_list[[b + 1]] <- PCAb$PCA$scores
+  loadings_list[[b + 1]] <- as.matrix(PCAb$PCA$loadings[, 1:4])
 }
 close(pb); cat("\nBootstrapping done (2x OOB).\n")
 
@@ -161,6 +174,28 @@ if(length(dim(scores_array)) == 3){
   score_mean <- apply(scores_array, c(1,2), mean)
   score_sd   <- apply(scores_array, c(1,2), sd)
   saveRDS(list(mean = score_mean, sd = score_sd), file = file.path(outdir, "PCA_scores_boot_summary.rds"))
+}
+
+# 8) Aggregate PCA loadings over bootstraps: mean and SD per trait x component
+loadings_array <- simplify2array(loadings_list) # traits x comps x boots
+if(length(dim(loadings_array)) == 3){
+  loadings_mean <- apply(loadings_array, c(1,2), mean)
+  loadings_sd   <- apply(loadings_array, c(1,2), sd)
+  colnames(loadings_mean) <- paste0("PC", 1:4)
+  colnames(loadings_sd) <- paste0("PC", 1:4)
+  saveRDS(list(mean = loadings_mean, sd = loadings_sd, all_boots = loadings_array), 
+          file = file.path(outdir, "PCA_loadings_boot_summary.rds"))
+  # Also save as CSV for easy inspection
+  loadings_summary_df <- data.frame(
+    Trait = rownames(loadings_mean),
+    PC1_mean = loadings_mean[,1], PC1_sd = loadings_sd[,1],
+    PC2_mean = loadings_mean[,2], PC2_sd = loadings_sd[,2],
+    PC3_mean = loadings_mean[,3], PC3_sd = loadings_sd[,3],
+    PC4_mean = loadings_mean[,4], PC4_sd = loadings_sd[,4]
+  )
+  write.csv(loadings_summary_df, file = file.path(outdir, "PCA_loadings_boot_summary.csv"), row.names = FALSE)
+  cat("\nPCA loadings aggregated across", nboot + 1, "imputations (single + bootstraps).\n")
+  cat("Saved to:", file.path(outdir, "PCA_loadings_boot_summary.rds"), "\n")
 }
 
 # --- Compare bootstrap PCs vs. bootstrap PCs (2x)  ---

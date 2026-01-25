@@ -54,6 +54,9 @@ imputedTraits <- (missForest(xmis= traitsAux)$ximp[, traitsSelect])
 identical(rownames(AllTraitsAllInfo), rownames(imputedTraits)) #checking all is ordered correctly
 AllTraitsAllInfo[, traitsSelect] <- imputedTraits # Fill trait info with imputed values
 saveRDS(AllTraitsAllInfo, "data/imputedTraits.rds")
+saveRDS(traitsAux, "data/traitsAux.rds")      # For use in scripts 061, 063
+saveRDS(traitsSelect, "data/traitsSelect.rds") # For use in scripts 061, 062, 063
+saveRDS(traitsUse, "data/traitsUse.rds")      # For use in script 062
 
 ########################################################################
 ### 2. Functional space using imputed dataset
