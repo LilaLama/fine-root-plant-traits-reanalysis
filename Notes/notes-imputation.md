@@ -28,17 +28,45 @@ Ideally you should propagate imputation uncertainty into the PCA and all downstr
 Why it matters (very short)
 
 Single imputation gives one “best guess” dataset → downstream results treat imputed values as known.
-Proper propagation shows how much uncertainty in species positions / FRic / dissimilarities comes from missing data.
+Proper propagation shows how much uncertainty in species positions / dissimilarities comes from missing data.
 
-missForest gives a best guess but also reports OOB error estimates for each imputed value. This uncertainty can be propagated through PCA and downstream analyses using multiple imputation (e.g., Rubin’s rules).
+missForest gives a best guess but also reports OOB error estimates for each imputed value. This uncertainty can be propagated through PCA and downstream analyses using multiple imputation.
 
 ## How to propagate OOB uncertainty to PCA?
-set seed? 
-1. run missForest once
-2. for each imputed value, sample from a distribution centered on the imputed value with spread given by the OOB error (e.g., normal distribution with mean = imputed value, sd = oob_norm * sd(imputed values for that trait))
-3. on the missing values, for nboot replicates, generate nboot datasets by sampling imputed values as above
-4. for each bootstrapped dataset run PCA (and downstream analyses)
-5. get mean and sd of PCA scores over bootstraps to get uncertainty in species positions
+
+### What is the OOB Error?
+**Out-of-Bag (OOB)** error is an internal cross-validation estimate from random forests:
+- Each tree in the forest is built using a **bootstrap sample** (sampling with replacement) of ~63% of the data
+- The remaining ~37% (the "out-of-bag" observations) are **not used** to build that tree
+- For each observation, predictions are made using only trees where that observation was OOB
+- OOB error compares these OOB predictions to the true observed values
+
+**Why it's useful:**
+- Provides an honest, unbiased estimate of prediction error **without needing a separate test set**
+- In missForest: tells us how well the random forest can predict missing values based on observed patterns
+- Per-variable OOB error (NRMSE) indicates imputation uncertainty for each trait
+
+### Understanding OOB Error Output
+`missForest(..., variablewise = TRUE)` returns the **NRMSE (Normalized Root Mean Squared Error)** per numeric variable:
+$$\text{NRMSE} = \frac{\text{RMSE}}{\text{SD}_{\text{observed}}}$$
+
+### Converting NRMSE to Absolute Uncertainty
+To get the absolute imputation error (in the original scale), we multiply:
+$$\text{noise\_sd} = \text{NRMSE} \times \text{SD}_{\text{observed}} = \text{RMSE}$$
+
+This recovers the non-normalized RMSE, which represents the expected standard deviation of imputation errors for each trait.
+
+### Parametric Bootstrap Procedure (Script 061)
+1. **Run missForest once** → get imputed values (`ximp0`) and OOB error estimates per variable
+2. **Compute noise SD per trait:** `noise_sd = oob_norm * sd_obs` (on log10-scale)
+3. **Identify missing positions:** Track which cells were originally missing
+4. **For 50 bootstrap replicates:**
+   - For each originally missing value in trait $j$, sample from:
+     $$x_{\text{boot}} \sim \mathcal{N}(\mu = x_{\text{imputed}}, \sigma = \text{noise\_sd}_j)$$
+   - This is a **continuous parametric sample**, not a discrete ± perturbation
+   - Non-missing values remain unchanged
+5. **Run full PCA pipeline** on each bootstrap dataset (varimax rotation, TPDs, etc.)
+6. **Aggregate results:** Compute mean and SD of PCA scores/loadings across all bootstraps
 
 ## Implementation: Three-method comparison (Scripts 061–063, 10a)
 
@@ -74,18 +102,7 @@ To address the uncertainty propagation question and test whether the OOB estimat
    - If 2x OOB gives substantially different results → OOB might be underestimated
    - Files saved: `PCA_scores_1x_vs_2x_boot.rds`, comparison plots in `data/imputed_bootstrap_2x/`
 
-### 4. **Loadings Comparison (Script 10a)**
-   - Extracts varimax-rotated PCA loadings for all 10 traits across PC1–PC4
-   - Compares loadings across all four methods:
-     - Original missForest
-     - Mean imputation
-     - 1x OOB bootstrap (mean)
-     - 2x OOB bootstrap (mean)
-   - Output: `data/Loadings_all_PCs_comparison.csv`
-   - Summary statistics: Mean absolute differences between methods
-   - Shows whether imputation method affects **PCA structure** (loadings) or only **species positions** (scores)
-
-## Interpretation for Peer Review
+## Interpretation for Review
 
 ### If mean imputation ≈ missForest:
 - missForest adds little value → simple mean imputation is sufficient
