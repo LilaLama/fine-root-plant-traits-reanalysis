@@ -65,7 +65,7 @@ for (i in 1:PCATotal_mean$dimensions) {
 	if (i == 1 & PCATotal_mean$PCA$loadings["ph", i]  < 0) { ... }
 	if (i == 2 & PCATotal_mean$PCA$loadings["sla", i] < 0) { ... }
 	if (i == 3 & PCATotal_mean$PCA$loadings["SRL", i] > 0) { ... }
-	if (i == 4 & PCATotal_mean$PCA$loadings["N", i]   < 0) { ... }
+    ...
 }
 
 saveRDS(PCATotal_mean, file = "data/PCATotal_mean_imputation.rds")
