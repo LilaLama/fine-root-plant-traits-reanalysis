@@ -118,25 +118,19 @@ oob_norm <- oob_raw[traitsSelect]  # extract OOB only for real traits
 2. Convert trait-wise NRMSE to absolute imputation error SDs (on the log10 scale of the traits):
 
 ```r
-sd_obs <- sapply(colnames(ximp0), function(j) {
-	v <- traitsAux[, j][!is.na(traitsAux[, j])]
-	if (length(v) > 1) sd(v) else 0
-})
-
-noise_sd <- oob_norm * sd_obs   # RMSE per trait
+sd_obs <- sapply(colnames(ximp0), function(j) sd(traitsAux[, j], na.rm = TRUE))
+noise_sd <- oob_norm * sd_obs              # RMSE per trait
 noise_sd[is.na(noise_sd) | noise_sd <= 0] <- 1e-8
-
-missing_mat <- is.na(as.matrix(traitsAux))  # positions of originally missing values
+missing_mat <- is.na(as.matrix(traitsAux)) # positions of originally missing values
 ```
 
 3. Define a helper that re-runs the full PCA/TPD pipeline on an arbitrary imputed dataset (copied from the main script so that all steps are identical):
 
 ```r
 make_PCAtotal_from_AllTraits <- function(AllTraitsAllInfo_obj, suffix = NULL) {
-	AllTraits <- AllTraitsAllInfo_obj[, traitsSelect]
-	# determine dimensions, run PCA with varimax, apply orientation rules,
-	# compute 4D TPDs, and save a PCATotal list
-	# ... (code as in the main pipeline) ...
+	# 1) extract traits, 2) run PCA (paran + principal with varimax),
+	# 3) apply the same orientation rules as in the main analysis,
+	# 4) compute 4D TPDs; return a PCATotal list and optionally save it
 }
 ```
 
@@ -157,7 +151,7 @@ saveRDS(AllTraitsAllInfo_single, file = file.path(outdir, "imputed_single.rds"))
 
 PCA_single <- make_PCAtotal_from_AllTraits(AllTraitsAllInfo_single, suffix = "_single")
 scores_list[[1]]   <- PCA_single$PCA$scores
-loadings_list[[1]] <- as.matrix(PCA_single$PCA$loadings[, 1:4])
+loadings_list[[1]] <- PCA_single$PCA$loadings[, 1:4]
 
 cat("\nBootstrapping imputations...\n")
 pb <- utils::txtProgressBar(min = 0, max = nboot, style = 3)
@@ -169,8 +163,8 @@ for (b in seq_len(nboot)) {
 		miss_idx <- which(missing_mat[, j])
 		if (length(miss_idx) > 0) {
 			xboot[miss_idx, j] <- rnorm(length(miss_idx),
-																	mean = ximp0[miss_idx, j],
-																	sd   = noise_sd[j])
+										mean = ximp0[miss_idx, j],
+										sd   = noise_sd[j])
 		}
 	}
 	AllTraitsAllInfo_b <- AllTraitsAllInfo
@@ -181,26 +175,12 @@ for (b in seq_len(nboot)) {
 	PCAb <- make_PCAtotal_from_AllTraits(AllTraitsAllInfo_b,
 																			 suffix = sprintf("_boot_%03d", b))
 	scores_list[[b + 1]]   <- PCAb$PCA$scores
-	loadings_list[[b + 1]] <- as.matrix(PCAb$PCA$loadings[, 1:4])
+	loadings_list[[b + 1]] <- PCAb$PCA$loadings[, 1:4]
 }
 close(pb)
 ```
 
-5. Summarize bootstrap uncertainty in PCA scores and loadings across all replicates:
-
-```r
-scores_array <- simplify2array(lapply(scores_list, function(x) x[, 1:4]))
-score_mean   <- apply(scores_array, c(1, 2), mean)
-score_sd     <- apply(scores_array, c(1, 2), sd)
-saveRDS(list(mean = score_mean, sd = score_sd),
-				file = file.path(outdir, "PCA_scores_boot_summary.rds"))
-
-loadings_array <- simplify2array(loadings_list)
-loadings_mean  <- apply(loadings_array, c(1, 2), mean)
-loadings_sd    <- apply(loadings_array, c(1, 2), sd)
-saveRDS(list(mean = loadings_mean, sd = loadings_sd, all_boots = loadings_array),
-				file = file.path(outdir, "PCA_loadings_boot_summary.rds"))
-```
+5. Finally, we convert the lists of scores and loadings into arrays, compute the mean and standard deviation across all bootstrap replicates for each species × component and each trait × component, and save these summaries to `PCA_scores_boot_summary.rds` and `PCA_loadings_boot_summary.rds`.
 
 **Key outputs**
 
