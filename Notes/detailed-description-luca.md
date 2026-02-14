@@ -1,15 +1,30 @@
-## Assessment of imputation uncertainty
+# Assessment of imputation uncertainty
+
+## Aim of imputation analysis
 
 In the original publication, the authors applied one single missForest imputation on data, that were missing not more than 2 below-ground and not more than 3 above-ground traits thereby increasing the number of species from 301 to 1,218. 
-<how missForest works>
-<why they chose missForest>
 
-Even if imputation does not systematically distort ordination geometry, imputation uncertainty could still affect how stable individual species’ positions are in PCA space. To evaluate whether uncertainty in imputed values propagates into meaningful changes in PCA geometry, we explicitly tested ordination stability under different levels of imputation uncertainty.
+The goal of the imputation analysis is to assess how sensitive our conclusions about the functional trait space are to the way missing data are handled and to the remaining uncertainty in imputed values.
 
-The steps correspond to the R scripts:
+More specifically, we aim to:
+- test whether the geometry of the functional space (PCA axes, trait loadings, species gradients) is robust to replacing the original single missForest imputation with a deliberately naive mean-imputation baseline;
+- quantify how missForest out-of-bag (OOB) imputation uncertainty propagates into species scores and trait loadings in PCA space; and
+- evaluate a conservative worst-case scenario by doubling OOB-based uncertainty, to check whether our main ordination-based conclusions remain stable even under inflated imputation noise.
+
+These aims are implemented in three complementary steps, corresponding to the following R scripts:
 - `code/061_multiple_imputation.R` — parametric bootstrap around missForest OOB error ("1× OOB")
 - `code/062_imputation_mean_simple.R` — naive mean imputation baseline
 - `code/063_multiple_imputation_2x_OOB.R` — sensitivity analysis with doubled OOB uncertainty ("2× OOB")
+
+---
+
+## Out-of-bag (OOB) error in missForest
+
+missForest (R package missForest; Stekhoven & Bühlmann 2012) is a random forest–based imputation algorithm. Like standard random forests, it uses bootstrap samples of the data to grow each tree: for every tree, a bootstrap sample of observations is drawn (with replacement) to build the tree, and the remaining observations are "out-of-bag" (OOB) for that tree. For an observation, an OOB prediction is obtained by aggregating predictions from all trees for which this observation was not used in tree construction. Comparing these OOB predictions to the observed values yields an internal cross-validation estimate of prediction error.
+
+In missForest, this internal error is reported as an overall OOB error and, if `variablewise = TRUE`, as a separate error for each imputed variable. For continuous variables the error metric is the normalized root mean squared error (NRMSE), i.e. the root mean squared difference between OOB predictions and observed values, divided by the sample standard deviation of the observed values. For categorical variables missForest reports the proportion of falsely classified entries (PFC). In our case all imputed traits are continuous, so we use the trait-wise NRMSEs returned by missForest as measures of imputation uncertainty for each trait on the log10 scale.
+
+In the OOB-bootstrap part of our analysis (Step 2 and 3), we convert these trait-wise NRMSEs back to absolute error scales by multiplying them with the observed trait standard deviation. This gives one noise standard deviation per trait (an estimated RMSE), which we then use to generate parametric noise around the single imputed values: for each originally missing entry of trait, we draw bootstrap values from a normal distribution centred on the missForest imputation with standard deviation equal to this trait-specific error. This procedure allows us to propagate the uncertainty quantified by the missForest OOB error through the PCA and all downstream summaries.
 
 ---
 
@@ -24,51 +39,34 @@ The steps correspond to the R scripts:
 
 **(ii) How do we do it? (code and outputs)**
 
-Script: `code/062_imputation_mean_simple.R`
-
-1. Load the trait matrix used in the original PCA and the set of selected traits:
+In `code/062_imputation_mean_simple.R`, we take the trait matrix and selected traits used in the original PCA, replace all missing entries by their trait-wise means computed from the observed values, and then re-run exactly the same PCA pipeline as in the main analysis (component selection with `paran`, varimax-rotated `psych::principal`, orientation rules, and saving the resulting PCA object). The core steps are sketched below:
 
 ```r
-traitsUse    <- readRDS("data/traitsUse.rds")
-traitsSelect <- readRDS("data/traitsSelect.rds")
+traitsUse        <- readRDS("data/traitsUse.rds")
+traitsSelect     <- readRDS("data/traitsSelect.rds")
 AllTraitsAllInfo <- readRDS("data/imputedTraits.rds")
-```
 
-2. Compute trait-wise means from observed (non-missing) values and replace NAs with these means:
-
-```r
+## Mean imputation
 trait_means <- sapply(traitsUse[, traitsSelect], function(col) mean(col, na.rm = TRUE))
-
 imputedTraits_mean <- traitsUse[, traitsSelect]
 for (j in colnames(imputedTraits_mean)) {
-	imputedTraits_mean[is.na(imputedTraits_mean[, j]), j] <- trait_means[j]
+  imputedTraits_mean[is.na(imputedTraits_mean[, j]), j] <- trait_means[j]
 }
-
 AllTraitsAllInfo_mean <- AllTraitsAllInfo
 AllTraitsAllInfo_mean[, traitsSelect] <- imputedTraits_mean
-saveRDS(AllTraitsAllInfo_mean, file = "data/imputedTraits_mean.rds")
-```
+saveRDS(AllTraitsAllInfo_mean, "data/imputedTraits_mean.rds")
 
-3. Re-run the full PCA pipeline used in the main analysis (number of components via `paran`, varimax rotation, score scaling, fixed orientation rules, 4D and 2D TPDs) on the mean-imputed dataset:
-
-```r
-AllTraits_mean <- AllTraitsAllInfo_mean[, traitsSelect]
-PCATotal_mean <- list()
-PCATotal_mean$traits     <- AllTraits_mean
-PCATotal_mean$dimensions <- paran(PCATotal_mean$traits)$Retained
+## PCA on mean-imputed traits (same pipeline as main analysis)
+AllTraits_mean            <- AllTraitsAllInfo_mean[, traitsSelect]
+PCATotal_mean             <- list()
+PCATotal_mean$traits      <- AllTraits_mean
+PCATotal_mean$dimensions  <- paran(PCATotal_mean$traits)$Retained
 PCATotal_mean$PCA <- psych::principal(scale(PCATotal_mean$traits),
-																			nfactors = PCATotal_mean$dimensions,
-																			rotate   = "varimax", covar = TRUE)
+                                      nfactors = PCATotal_mean$dimensions,
+                                      rotate   = "varimax", covar = TRUE)
 
-# Orientation rules (same as original script)
-for (i in 1:PCATotal_mean$dimensions) {
-	if (i == 1 & PCATotal_mean$PCA$loadings["ph", i]  < 0) { ... }
-	if (i == 2 & PCATotal_mean$PCA$loadings["sla", i] < 0) { ... }
-	if (i == 3 & PCATotal_mean$PCA$loadings["SRL", i] > 0) { ... }
-    ...
-}
-
-saveRDS(PCATotal_mean, file = "data/PCATotal_mean_imputation.rds")
+# Orientation rules and TPD calculations follow the main script
+saveRDS(PCATotal_mean, "data/PCATotal_mean_imputation.rds")
 ```
 
 **Key outputs**
@@ -88,55 +86,33 @@ saveRDS(PCATotal_mean, file = "data/PCATotal_mean_imputation.rds")
 
 **(i) Why do we do this step?**
 
-- Single imputation (even with missForest) treats imputed values as if they were known, and therefore ignores imputation variance. This can make downstream uncertainty (e.g. confidence intervals, spread of species scores) appear too small.
-- missForest internally reports out-of-bag (OOB) prediction error per trait (NRMSE), which quantifies how well the random forest can predict missing values.
-- We use these OOB errors to parameterize a parametric bootstrap around the single imputed dataset: We generate many alternative versions of the dataset in which only originally missing entries are perturbed according to their estimated imputation error.
-- By re-running the full PCA pipeline on each bootstrap dataset, we can quantify how much imputation uncertainty propagates into species scores and trait loadings.
+- A single missForest imputation gives one "best guess" dataset and treats imputed values as fixed, so downstream analyses ignore imputation variance and may understate uncertainty.
+- missForest provides trait-wise OOB error estimates that quantify the typical prediction error for each trait (see OOB section above). In this step we turn these error estimates into a parametric bootstrap around the single imputed dataset.
+- By repeatedly perturbing only the originally missing entries according to their trait-specific OOB error and re-running the full PCA pipeline, we obtain a direct measure of how much imputation uncertainty propagates into species scores and trait loadings.
 
 **(ii) How do we do it? (code and outputs)**
 
-Script: `code/061_multiple_imputation.R`
-
-1. Run missForest once with `variablewise = TRUE` to obtain a single imputed dataset and OOB errors per trait:
+In `code/061_multiple_imputation.R`, we first run missForest with `variablewise = TRUE` to obtain a single imputed dataset together with trait-wise OOB NRMSE values. We then convert these normalized errors back to absolute error scales, identify which entries were originally missing, and, for each of 50 bootstrap replicates, add Gaussian noise with trait-specific SD only to those missing cells. For every perturbed dataset we re-run the full PCA/TPD pipeline using the same helper as in the main analysis, and finally summarize the resulting lists of scores and loadings across bootstraps (means and SDs) and save them for downstream use. The key implementation steps are:
 
 ```r
 library(missForest)
 
-traitsAux    <- readRDS("data/traitsAux.rds")
-traitsSelect <- readRDS("data/traitsSelect.rds")
+## Single missForest imputation + OOB errors
+traitsAux        <- readRDS("data/traitsAux.rds")
+traitsSelect     <- readRDS("data/traitsSelect.rds")
 AllTraitsAllInfo <- readRDS("data/imputedTraits.rds")
 
-mf <- missForest(xmis = traitsAux, variablewise = TRUE, verbose = TRUE)
+mf    <- missForest(xmis = traitsAux, variablewise = TRUE, verbose = TRUE)
 ximp0 <- mf$ximp
-saveRDS(mf, file = "data/imputedTraitsOOB.rds")
+saveRDS(mf, "data/imputedTraitsOOB.rds")
 
-oob_raw <- mf$OOBerror
-names(oob_raw) <- colnames(ximp0)
-oob_norm <- oob_raw[traitsSelect]  # extract OOB only for real traits
-```
-
-2. Convert trait-wise NRMSE to absolute imputation error SDs (on the log10 scale of the traits):
-
-```r
-sd_obs <- sapply(colnames(ximp0), function(j) sd(traitsAux[, j], na.rm = TRUE))
-noise_sd <- oob_norm * sd_obs              # RMSE per trait
+oob_norm <- mf$OOBerror[traitsSelect]              # trait-wise NRMSE
+sd_obs   <- sapply(traitsSelect, function(j) sd(traitsAux[, j], na.rm = TRUE))
+noise_sd <- oob_norm * sd_obs                      # RMSE per trait
 noise_sd[is.na(noise_sd) | noise_sd <= 0] <- 1e-8
-missing_mat <- is.na(as.matrix(traitsAux)) # positions of originally missing values
-```
+missing_mat <- is.na(as.matrix(traitsAux))         # originally missing entries
 
-3. Define a helper that re-runs the full PCA/TPD pipeline on an arbitrary imputed dataset (copied from the main script so that all steps are identical):
-
-```r
-make_PCAtotal_from_AllTraits <- function(AllTraitsAllInfo_obj, suffix = NULL) {
-	# 1) extract traits, 2) run PCA (paran + principal with varimax),
-	# 3) apply the same orientation rules as in the main analysis,
-	# 4) compute 4D TPDs; return a PCATotal list and optionally save it
-}
-```
-
-4. Bootstrap around the single imputation by adding parametric noise only to originally missing entries. For each of `nboot = 50` replicates:
-
-```r
+## Parametric OOB bootstrap around the single imputation
 nboot  <- 50
 outdir <- "data/imputed_bootstrap"
 dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
@@ -144,43 +120,38 @@ dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
 scores_list   <- vector("list", nboot + 1)
 loadings_list <- vector("list", nboot + 1)
 
-# Single (deterministic) imputation as baseline
 AllTraitsAllInfo_single <- AllTraitsAllInfo
 AllTraitsAllInfo_single[, traitsSelect] <- ximp0[, traitsSelect]
-saveRDS(AllTraitsAllInfo_single, file = file.path(outdir, "imputed_single.rds"))
+saveRDS(AllTraitsAllInfo_single, file.path(outdir, "imputed_single.rds"))
 
-PCA_single <- make_PCAtotal_from_AllTraits(AllTraitsAllInfo_single, suffix = "_single")
-scores_list[[1]]   <- PCA_single$PCA$scores
-loadings_list[[1]] <- PCA_single$PCA$loadings[, 1:4]
+PCA_single          <- make_PCAtotal_from_AllTraits(AllTraitsAllInfo_single, suffix = "_single")
+scores_list[[1]]    <- PCA_single$PCA$scores
+loadings_list[[1]]  <- PCA_single$PCA$loadings[, 1:4]
 
-cat("\nBootstrapping imputations...\n")
-pb <- utils::txtProgressBar(min = 0, max = nboot, style = 3)
 for (b in seq_len(nboot)) {
-	utils::setTxtProgressBar(pb, b)
-	set.seed(10000 + b)
-	xboot <- ximp0
-	for (j in seq_len(ncol(xboot))) {
-		miss_idx <- which(missing_mat[, j])
-		if (length(miss_idx) > 0) {
-			xboot[miss_idx, j] <- rnorm(length(miss_idx),
-										mean = ximp0[miss_idx, j],
-										sd   = noise_sd[j])
-		}
-	}
-	AllTraitsAllInfo_b <- AllTraitsAllInfo
-	AllTraitsAllInfo_b[, traitsSelect] <- xboot[, traitsSelect]
-	saveRDS(AllTraitsAllInfo_b,
-					file = file.path(outdir, sprintf("imputed_boot_%03d.rds", b)))
+  set.seed(10000 + b)
+  xboot <- ximp0
+  for (j in seq_len(ncol(xboot))) {
+    miss_idx <- which(missing_mat[, j])
+    if (length(miss_idx) > 0) {
+      xboot[miss_idx, j] <- rnorm(length(miss_idx),
+                                  mean = ximp0[miss_idx, j],
+                                  sd   = noise_sd[j])
+    }
+  }
+  AllTraitsAllInfo_b <- AllTraitsAllInfo
+  AllTraitsAllInfo_b[, traitsSelect] <- xboot[, traitsSelect]
+  saveRDS(AllTraitsAllInfo_b, file.path(outdir, sprintf("imputed_boot_%03d.rds", b)))
 
-	PCAb <- make_PCAtotal_from_AllTraits(AllTraitsAllInfo_b,
-																			 suffix = sprintf("_boot_%03d", b))
-	scores_list[[b + 1]]   <- PCAb$PCA$scores
-	loadings_list[[b + 1]] <- PCAb$PCA$loadings[, 1:4]
+  PCAb                 <- make_PCAtotal_from_AllTraits(AllTraitsAllInfo_b, suffix = sprintf("_boot_%03d", b))
+  scores_list[[b + 1]] <- PCAb$PCA$scores
+  loadings_list[[b+1]] <- PCAb$PCA$loadings[, 1:4]
 }
-close(pb)
-```
 
-5. Finally, we convert the lists of scores and loadings into arrays, compute the mean and standard deviation across all bootstrap replicates for each species × component and each trait × component, and save these summaries to `PCA_scores_boot_summary.rds` and `PCA_loadings_boot_summary.rds`.
+## Summaries across bootstraps (not shown in detail here)
+saveRDS(list(scores = scores_list, loadings = loadings_list),
+        file.path(outdir, "PCA_scores_loadings_boot_raw.rds"))
+```
 
 **Key outputs**
 
@@ -204,38 +175,44 @@ close(pb)
 
 **(i) Why do we do this step?**
 
-- OOB error estimates are internal to missForest and could, in principle, underestimate true imputation uncertainty.
-- To test the robustness of our conclusions to possible underestimation, we repeat the parametric bootstrap but inflate all OOB-based noise SDs by a factor of 2.
-- This provides a conservative “worst-case” scenario: if PCA results remain stable even when imputation noise is doubled, then the main ordination conclusions are very robust.
+- The OOB-based error estimates used in Step 2 are model-based and might, in principle, underestimate the true uncertainty in imputed values.
+- To probe this, we repeat exactly the same OOB-bootstrap procedure but inflate all trait-wise OOB error SDs by a factor of two before generating the perturbations.
+- If PCA scores, loadings and group-level patterns remain essentially unchanged under this amplified noise, we gain evidence that our main ordination conclusions are robust even under a conservative "worst-case" imputation uncertainty.
 
 **(ii) How do we do it? (code and outputs)**
 
-Script: `code/063_multiple_imputation_2x_OOB.R`
-
-1. As in Step 2, run missForest once, but scale the OOB errors by 2 before constructing the noise SDs:
+In `code/063_multiple_imputation_2x_OOB.R`, we repeat the same workflow as in Step 2 but inflate the trait-wise OOB NRMSEs by a factor of two before converting them to absolute error SDs. The subsequent parametric bootstrap, PCA re-fitting and summarisation are identical to the 1× OOB case, so that the only difference between both analyses is the assumed size of the imputation noise. The essential code changes are:
 
 ```r
-mf <- missForest(xmis = traitsAux, variablewise = TRUE, verbose = TRUE)
+library(missForest)
+
+traitsAux        <- readRDS("data/traitsAux.rds")
+traitsSelect     <- readRDS("data/traitsSelect.rds")
+AllTraitsAllInfo <- readRDS("data/imputedTraits.rds")
+
+mf    <- missForest(xmis = traitsAux, variablewise = TRUE, verbose = TRUE)
 ximp0 <- mf$ximp
 
-oob_raw <- mf$OOBerror * 2     # multiply OOB NRMSE by 2
-names(oob_raw) <- colnames(ximp0)
+## Inflate trait-wise OOB errors by factor 2
+oob_raw  <- mf$OOBerror * 2
 oob_norm <- oob_raw[traitsSelect]
 
-sd_obs <- sapply(colnames(ximp0), function(j) {
-	v <- traitsAux[, j][!is.na(traitsAux[, j])]
-	if (length(v) > 1) sd(v) else 0
+sd_obs   <- sapply(traitsSelect, function(j) {
+  v <- traitsAux[, j][!is.na(traitsAux[, j])]
+  if (length(v) > 1) sd(v) else 0
 })
 
-noise_sd <- oob_norm * sd_obs  # 2× amplified RMSE per trait
+noise_sd <- oob_norm * sd_obs   # 2x amplified RMSE per trait
 noise_sd[is.na(noise_sd) | noise_sd <= 0] <- 1e-8
 missing_mat <- is.na(as.matrix(traitsAux))
 
 cat("\n*** OOB-BASED NOISE MULTIPLIED BY 2.0 ***\n")
 print(noise_sd[traitsSelect])
-```
 
-2. Repeat the bootstrap loop and PCA pipeline as in Step 2
+## The subsequent bootstrap loop, PCA re-fitting and summaries
+## follow exactly the same structure as in code/061_multiple_imputation.R,
+## but using these inflated noise_sd values.
+```
 
 **Key outputs**
 
@@ -250,7 +227,7 @@ print(noise_sd[traitsSelect])
 - Doubling the OOB-based noise modestly increases the SD of species scores, but the increase is small relative to the total spread of the PCA axes.
 - Mean species positions under 2× OOB remain extremely close to those under 1× OOB; the `delta` and `rel_ratio` summaries show only minor shifts.
 - Trait loadings under 2× OOB remain highly similar to those under 1× OOB, and the qualitative interpretation of PCA axes is unchanged.
-- The overall geometry of the ordination (orientation of trait axes, position of species groups, large-scale gradients) is therefore robust even to deliberately inflated imputation uncertainty.
+- The exact ordinations obtained under 1× and 2× OOB will be compared formally in a later step using a Procrustes test.
 
 ---
 
@@ -260,7 +237,7 @@ Across the three steps (mean baseline, 1× OOB bootstrap, and 2× OOB sensitivit
 
 - The global PCA structure is insensitive to the choice between naive mean imputation and missForest.
 - When imputation uncertainty is explicitly propagated using missForest OOB errors, species scores and trait loadings show only modest variation around the deterministic single-imputation solution.
-- Even when OOB-based uncertainty is doubled, ordination geometry and trait axes remain highly stable.
+- Even when OOB-based uncertainty is doubled, the visual ordination geometry and trait axes appear highly stable.
 
-Together, these results support the conclusion that the main findings about the fine-root functional trait space are robust to missing-data treatment and that imputation uncertainty primarily adds small, local noise rather than changing the underlying ecological signal.
+Taken together, these results strongly suggest that the main findings about the fine-root functional trait space are robust to missing-data treatment and that imputation uncertainty primarily adds small, local noise rather than changing the underlying ecological signal. A definitive quantitative assessment of how similar the ordinations are will, however, come from the Procrustes comparisons presented in the subsequent analysis.
 
