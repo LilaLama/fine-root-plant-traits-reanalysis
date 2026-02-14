@@ -88,7 +88,7 @@ col_scale <- scale_fill_distiller(
   palette = "YlOrRd",
   direction = 1,
   na.value = "grey90",
-  name = "Uncertainty\n(SD)"
+  name = "SD"
 )
 
 # Plot
@@ -109,8 +109,35 @@ p <- ggplot(long_df, aes(PC, Trait, fill = sd)) +
     axis.text.x = element_text(angle = 0)
   )
 
-# Save
-dir.create("Figures", showWarnings = FALSE)
-ggsave("Figures/Loadings_heatmap.png", p, width = 18, height = 16, units = "cm", dpi = 300)
+# # Save
+# dir.create("Figures", showWarnings = FALSE)
+# ggsave("Figures/Loadings_heatmap.png", p, width = 18, height = 16, units = "cm", dpi = 300)
+
+# Save one heatmap per imputation method
+for (m in levels(long_df$Method)) {
+  df_m <- dplyr::filter(long_df, Method == m)
+
+  p_m <- ggplot(df_m, aes(PC, Trait, fill = sd)) +
+    geom_tile(color = "white", linewidth = 0.3) +
+    geom_text(aes(label = label, fontface = ifelse(is_max, "bold", "plain")), size = 3) +
+    col_scale +
+    scale_y_discrete(limits = rev(trait_order)) +
+    labs(
+      title = paste("PCA Loadings –", m),
+      x = "",
+      y = "Trait"
+    ) +
+    theme_minimal(base_size = 11) +
+    theme(
+      panel.grid = element_blank(),
+      axis.text.x = element_text(angle = 0),
+      legend.position = "right"
+    )
+
+  fname <- paste0("Figures/Loadings_heatmap_", gsub(" ", "_", m), ".png")
+  ggsave(fname, p_m, width = 9, height = 6, units = "cm", dpi = 300)
+  cat("Saved:", fname, "\n")
+}
 
 cat("Saved: Figures/Loadings_heatmap.png\n")
+
